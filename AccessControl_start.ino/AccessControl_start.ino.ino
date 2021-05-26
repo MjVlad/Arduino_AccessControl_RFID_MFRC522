@@ -1,6 +1,7 @@
 #include <EEPROM.h>     // We are going to read and write PICC's UIDs from/to EEPROM
 #include <SPI.h>        // RC522 Module uses SPI protocol
 #include <MFRC522.h>  // Library for Mifare RC522 Devices
+#include <time.h>
 
 #define COMMON_ANODE
 
@@ -15,9 +16,81 @@
 #define redLed 7    // Set Led Pins
 #define greenLed 6
 #define blueLed 5
+#define logBegin 262
 
-//#define relay 4     // Set Relay Pin
-//#define wipeB 3     // Button pin for WipeMode
+union timeInByte{
+byte arr[4];
+uint32_t val;
+};
+
+////////////////////// Read time //////////////////////////
+uint32_t readTime(uint16_t pos){
+  timeInByte cur;
+  for (uint8_t i = 0; i < 4; i++){
+    cur.arr[i] = EEPROM.read(pos + i);
+  }
+  return cur.val;
+}
+
+struct Log{
+  uint32_t curTime;
+  uint8_t numberCard;
+  uint8_t actionFlag = 0;
+
+  Log(uint8_t cardIndex, uint8_t flag){
+    curTime = clock();
+    numberCard = cardIndex;
+    actionFlag = flag;
+  }
+
+  const char* getFlag(){
+    switch(actionFlag){
+      case 0:
+      return "Access granted";
+      case 1:
+      return "Access denied";
+      case 2:
+      return "Add card";
+      case 3:
+      return "Delete card";
+      case 4:
+      return "Entry program mode";
+      case 5:
+      return "Exiting program mode";
+    }
+  }
+
+  void outToSerialPort(){
+    //TODO
+  }
+
+  void writeLog(uint16_t pos){
+    timeInByte tmp;
+    tmp.val = curTime;
+    for (int i = 0; i < 4; i++){
+      EEPROM.write(pos + i, tmp.arr[i]);
+    }
+    EEPROM.write(pos + 4, (byte)numberCard);
+    EEPROM.write(pos + 5, (byte)actionFlag);
+  }
+
+  void writeLog(){
+    uint16_t posElderLog = logBegin;
+    uint32_t elderTime = WINT_MAX;
+    for (uint16_t i = logBegin; i < 1023; i += 6){
+      uint32_t tmp = readTime(i);
+      if (tmp == 0){
+        writeLog(i);
+        return;
+      }
+      if (tmp < elderTime){
+        elderTime = tmp;
+        posElderLog = i;
+      }
+    }
+    writeLog(posElderLog);
+  }
+};
 
 bool programMode = false;  // initialize programming mode to false
 
@@ -251,7 +324,7 @@ void readID( uint8_t number ) {
 void writeID( byte a[] ) {
   if ( !findID( a ) ) {     // Before we write to the EEPROM, check to see if we have seen this card before!
     uint8_t num = EEPROM.read(0);     // Get the numer of used spaces, position 0 stores the number of ID cards
-    if ( num >= 63){
+    if ( num >= 64){
       failedWrite();
       Serial.println(F("Failed! Maximum records"));
     }
