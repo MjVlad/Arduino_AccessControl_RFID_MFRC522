@@ -38,7 +38,7 @@ struct Log{
   uint8_t actionFlag = 0;
 
   Log(uint8_t cardIndex, uint8_t flag){
-    curTime = clock();
+    curTime = time(0);
     numberCard = cardIndex;
     actionFlag = flag;
   }
@@ -57,6 +57,8 @@ struct Log{
       return "Entry program mode";
       case 5:
       return "Exiting program mode";
+      case 6:
+      return "Add mater card";
     }
   }
 
@@ -90,7 +92,7 @@ struct Log{
     }
     writeLog(posElderLog);
   }
-};
+} typedef Log;
 
 bool programMode = false;  // initialize programming mode to false
 
@@ -150,6 +152,8 @@ void setup() {
     }
     EEPROM.write(1, 143);                  // Write to EEPROM we defined Master Card.
     Serial.println(F("Master Card Defined"));
+    Log log(0, 6);
+    log.writeLog();
   }
   Serial.println(F("-------------------"));
   Serial.println(F("Master Card's UID"));
@@ -182,6 +186,8 @@ void loop () {
       Serial.println(F("Exiting Program Mode"));
       Serial.println(F("-----------------------------"));
       programMode = false;
+      Log log(0, 5);
+      log.writeLog();
       return;
     }
     else {
@@ -190,18 +196,24 @@ void loop () {
         deleteID(readCard);
         Serial.println("-----------------------------");
         Serial.println(F("Scan a PICC to ADD or REMOVE to EEPROM"));
+        Log log(findID(readCard), 3);
+        log.writeLog();
       }
       else {                    // If scanned card is not known add it
         Serial.println(F("I do not know this PICC, adding..."));
         writeID(readCard);
         Serial.println(F("-----------------------------"));
         Serial.println(F("Scan a PICC to ADD or REMOVE to EEPROM"));
+        Log log(findID(readCard), 2);
+        log.writeLog();
       }
     }
   }
   else {
     if ( isMaster(readCard)) {    // If scanned card's ID matches Master Card's ID - enter program mode
       programMode = true;
+      Log log(0, 4);
+      log.writeLog();
       Serial.println(F("Hello Master - Entered Program Mode"));
       uint8_t count = EEPROM.read(0);   // Read the first Byte of EEPROM that
       Serial.print(F("I have "));     // stores the number of ID's in EEPROM
@@ -216,10 +228,14 @@ void loop () {
       if ( findID(readCard) ) { // If not, see if the card is in the EEPROM
         Serial.println(F("Welcome, You shall pass"));
         granted(300);         // Open the door lock for 300 ms
+        Log log(findID(readCard), 0);
+        log.writeLog();
       }
       else {      // If not, show that the ID was not valid
         Serial.println(F("You shall not pass"));
         denied();
+        Log log(findID(readCard), 1);
+        log.writeLog();
       }
     }
   }
