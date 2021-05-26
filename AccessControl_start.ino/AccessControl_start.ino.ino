@@ -1,81 +1,6 @@
-/*
-   --------------------------------------------------------------------------------------------------------------------
-   Example sketch/program showing An Arduino Door Access Control featuring RFID, EEPROM, Relay
-   --------------------------------------------------------------------------------------------------------------------
-   This is a MFRC522 library example; for further details and other examples see: https://github.com/miguelbalboa/rfid
-
-   This example showing a complete Door Access Control System
-
-  Simple Work Flow (not limited to) :
-                                     +---------+
-  +----------------------------------->READ TAGS+^------------------------------------------+
-  |                              +--------------------+                                     |
-  |                              |                    |                                     |
-  |                              |                    |                                     |
-  |                         +----v-----+        +-----v----+                                |
-  |                         |MASTER TAG|        |OTHER TAGS|                                |
-  |                         +--+-------+        ++-------------+                            |
-  |                            |                 |             |                            |
-  |                            |                 |             |                            |
-  |                      +-----v---+        +----v----+   +----v------+                     |
-  |         +------------+READ TAGS+---+    |KNOWN TAG|   |UNKNOWN TAG|                     |
-  |         |            +-+-------+   |    +-----------+ +------------------+              |
-  |         |              |           |                |                    |              |
-  |    +----v-----+   +----v----+   +--v--------+     +-v----------+  +------v----+         |
-  |    |MASTER TAG|   |KNOWN TAG|   |UNKNOWN TAG|     |GRANT ACCESS|  |DENY ACCESS|         |
-  |    +----------+   +---+-----+   +-----+-----+     +-----+------+  +-----+-----+         |
-  |                       |               |                 |               |               |
-  |       +----+     +----v------+     +--v---+             |               +--------------->
-  +-------+EXIT|     |DELETE FROM|     |ADD TO|             |                               |
-          +----+     |  EEPROM   |     |EEPROM|             |                               |
-                     +-----------+     +------+             +-------------------------------+
-
-
-   Use a Master Card which is act as Programmer then you can able to choose card holders who will granted access or not
-
- * **Easy User Interface**
-
-   Just one RFID tag needed whether Delete or Add Tags. You can choose to use Leds for output or Serial LCD module to inform users.
-
- * **Stores Information on EEPROM**
-
-   Information stored on non volatile Arduino's EEPROM memory to preserve Users' tag and Master Card. No Information lost
-   if power lost. EEPROM has unlimited Read cycle but roughly 100,000 limited Write cycle.
-
- * **Security**
-   To keep it simple we are going to use Tag's Unique IDs. It's simple and not hacker proof.
-
-   @license Released into the public domain.
-
-   Typical pin layout used:
-   -----------------------------------------------------------------------------------------
-               MFRC522      Arduino       Arduino   Arduino    Arduino          Arduino
-               Reader/PCD   Uno/101       Mega      Nano v3    Leonardo/Micro   Pro Micro
-   Signal      Pin          Pin           Pin       Pin        Pin              Pin
-   -----------------------------------------------------------------------------------------
-   RST/Reset   RST          9             5         D9         RESET/ICSP-5     RST
-   SPI SS      SDA(SS)      10            53        D10        10               10
-   SPI MOSI    MOSI         11 / ICSP-4   51        D11        ICSP-4           16
-   SPI MISO    MISO         12 / ICSP-1   50        D12        ICSP-1           14
-   SPI SCK     SCK          13 / ICSP-3   52        D13        ICSP-3           15
-*/
-
 #include <EEPROM.h>     // We are going to read and write PICC's UIDs from/to EEPROM
 #include <SPI.h>        // RC522 Module uses SPI protocol
 #include <MFRC522.h>  // Library for Mifare RC522 Devices
-
-/*
-  Instead of a Relay you may want to use a servo. Servos can lock and unlock door locks too
-  Relay will be used by default
-*/
-
-// #include <Servo.h>
-
-/*
-  For visualizing whats going on hardware we need some leds and to control door lock a relay and a wipe button
-  (or some other hardware) Used common anode led,digitalWriting HIGH turns OFF led Mind that if you are going
-  to use common cathode led or just seperate leds, simply comment out #define COMMON_ANODE,
-*/
 
 #define COMMON_ANODE
 
@@ -91,8 +16,8 @@
 #define greenLed 6
 #define blueLed 5
 
-#define relay 4     // Set Relay Pin
-#define wipeB 3     // Button pin for WipeMode
+//#define relay 4     // Set Relay Pin
+//#define wipeB 3     // Button pin for WipeMode
 
 bool programMode = false;  // initialize programming mode to false
 
@@ -113,10 +38,10 @@ void setup() {
   pinMode(redLed, OUTPUT);
   pinMode(greenLed, OUTPUT);
   pinMode(blueLed, OUTPUT);
-  pinMode(wipeB, INPUT_PULLUP);   // Enable pin's pull up resistor
-  pinMode(relay, OUTPUT);
+  //pinMode(wipeB, INPUT_PULLUP);   // Enable pin's pull up resistor
+  //pinMode(relay, OUTPUT);
   //Be careful how relay circuit behave on while resetting or power-cycling your Arduino
-  digitalWrite(relay, HIGH);    // Make sure door is locked
+  //digitalWrite(relay, HIGH);    // Make sure door is locked
   digitalWrite(redLed, LED_OFF);  // Make sure led is off
   digitalWrite(greenLed, LED_OFF);  // Make sure led is off
   digitalWrite(blueLed, LED_OFF); // Make sure led is off
@@ -127,44 +52,11 @@ void setup() {
   mfrc522.PCD_Init();    // Initialize MFRC522 Hardware
 
   //If you set Antenna Gain to Max it will increase reading distance
-  //mfrc522.PCD_SetAntennaGain(mfrc522.RxGain_max);
+  mfrc522.PCD_SetAntennaGain(mfrc522.RxGain_max);
 
   Serial.println(F("Access Control Example v0.1"));   // For debugging purposes
   ShowReaderDetails();  // Show details of PCD - MFRC522 Card Reader details
 
-  //Wipe Code - If the Button (wipeB) Pressed while setup run (powered on) it wipes EEPROM
-  if (digitalRead(wipeB) == LOW) {  // when button pressed pin should get low, button connected to ground
-    digitalWrite(redLed, LED_ON); // Red Led stays on to inform user we are going to wipe
-    Serial.println(F("Wipe Button Pressed"));
-    Serial.println(F("You have 10 seconds to Cancel"));
-    Serial.println(F("This will be remove all records and cannot be undone"));
-    bool buttonState = monitorWipeButton(10000); // Give user enough time to cancel operation
-    if (buttonState == true && digitalRead(wipeB) == LOW) {    // If button still be pressed, wipe EEPROM
-      Serial.println(F("Starting Wiping EEPROM"));
-      for (uint16_t x = 0; x < EEPROM.length(); x = x + 1) {    //Loop end of EEPROM address
-        if (EEPROM.read(x) == 0) {              //If EEPROM address 0
-          // do nothing, already clear, go to the next address in order to save time and reduce writes to EEPROM
-        }
-        else {
-          EEPROM.write(x, 0);       // if not write 0 to clear, it takes 3.3mS
-        }
-      }
-      Serial.println(F("EEPROM Successfully Wiped"));
-      digitalWrite(redLed, LED_OFF);  // visualize a successful wipe
-      delay(200);
-      digitalWrite(redLed, LED_ON);
-      delay(200);
-      digitalWrite(redLed, LED_OFF);
-      delay(200);
-      digitalWrite(redLed, LED_ON);
-      delay(200);
-      digitalWrite(redLed, LED_OFF);
-    }
-    else {
-      Serial.println(F("Wiping Cancelled")); // Show some feedback that the wipe button did not pressed for 15 seconds
-      digitalWrite(redLed, LED_OFF);
-    }
-  }
   // Check if master card defined, if not let user choose a master card
   // This also useful to just redefine the Master Card
   // You can keep other EEPROM records just write other than 143 to EEPROM address 1
@@ -199,33 +91,10 @@ void setup() {
   cycleLeds();    // Everything ready lets give user some feedback by cycling leds
 }
 
-
-/////////////////////////////////////// Reset function ////////////////////////////////
-void(* resetFunc) (void) = 0;
-
 ///////////////////////////////////////// Main Loop ///////////////////////////////////
 void loop () {
   do {
     successRead = getID();  // sets successRead to 1 when we get read from reader otherwise 0
-    // When device is in use if wipe button pressed for 10 seconds initialize Master Card wiping
-    if (digitalRead(wipeB) == LOW) { // Check if button is pressed
-      // Visualize normal operation is iterrupted by pressing wipe button Red is like more Warning to user
-      digitalWrite(redLed, LED_ON);  // Make sure led is off
-      digitalWrite(greenLed, LED_OFF);  // Make sure led is off
-      digitalWrite(blueLed, LED_OFF); // Make sure led is off
-      // Give some feedback
-      Serial.println(F("Wipe Button Pressed"));
-      Serial.println(F("Master Card will be Erased! in 10 seconds"));
-      bool buttonState = monitorWipeButton(10000); // Give user enough time to cancel operation
-      if (buttonState == true && digitalRead(wipeB) == LOW) {    // If button still be pressed, wipe EEPROM
-        EEPROM.write(1, 0);                  // Reset Magic Number.
-        Serial.println(F("Master Card Erased from device"));
-        Serial.println(F("Please reset to re-program Master Card"));
-        resetFunc();
-        //while (1);
-      }
-      Serial.println(F("Master Card Erase Cancelled"));
-    }
     if (programMode) {
       cycleLeds();              // Program Mode cycles through Red Green Blue waiting to read a new card
     }
@@ -264,8 +133,8 @@ void loop () {
       uint8_t count = EEPROM.read(0);   // Read the first Byte of EEPROM that
       Serial.print(F("I have "));     // stores the number of ID's in EEPROM
       Serial.print(count);
-      Serial.print(F(" record(s) on EEPROM"));
-      Serial.println("");
+      Serial.println(F(" record(s) on EEPROM"));
+      //Serial.println("");
       Serial.println(F("Scan a PICC to ADD or REMOVE to EEPROM"));
       Serial.println(F("Scan Master Card again to Exit Program Mode"));
       Serial.println(F("-----------------------------"));
@@ -288,10 +157,7 @@ void granted ( uint16_t setDelay) {
   digitalWrite(blueLed, LED_OFF);   // Turn off blue LED
   digitalWrite(redLed, LED_OFF);  // Turn off red LED
   digitalWrite(greenLed, LED_ON);   // Turn on green LED
-  digitalWrite(relay, LOW);     // Unlock door!
-  delay(setDelay);          // Hold door lock open for given seconds
-  digitalWrite(relay, HIGH);    // Relock door
-  delay(1000);            // Hold green LED on for a second
+  delay(1500);            // Hold green LED on for a second
 }
 
 ///////////////////////////////////////// Access Denied  ///////////////////////////////////
@@ -370,7 +236,7 @@ void normalModeOn () {
   digitalWrite(blueLed, LED_ON);  // Blue LED ON and ready to read card
   digitalWrite(redLed, LED_OFF);  // Make sure Red LED is off
   digitalWrite(greenLed, LED_OFF);  // Make sure Green LED is off
-  digitalWrite(relay, HIGH);    // Make sure Door is Locked
+  //digitalWrite(relay, HIGH);    // Make sure Door is Locked
 }
 
 //////////////////////////////////////// Read an ID from EEPROM //////////////////////////////
@@ -385,6 +251,10 @@ void readID( uint8_t number ) {
 void writeID( byte a[] ) {
   if ( !findID( a ) ) {     // Before we write to the EEPROM, check to see if we have seen this card before!
     uint8_t num = EEPROM.read(0);     // Get the numer of used spaces, position 0 stores the number of ID cards
+    if ( num >= 63){
+      failedWrite();
+      Serial.println(F("Failed! Maximum records"));
+    }
     uint8_t start = ( num * 4 ) + 6;  // Figure out where the next slot starts
     num++;                // Increment the counter by one
     EEPROM.write( 0, num );     // Write the new count to the counter
@@ -398,6 +268,7 @@ void writeID( byte a[] ) {
     failedWrite();
     Serial.println(F("Failed! There is something wrong with ID or bad EEPROM"));
   }
+  delay(200);  //need for test
 }
 
 ///////////////////////////////////////// Remove ID from EEPROM   ///////////////////////////////////
@@ -427,6 +298,7 @@ void deleteID( byte a[] ) {
     successDelete();
     Serial.println(F("Succesfully removed ID record from EEPROM"));
   }
+  delay (200);
 }
 
 ///////////////////////////////////////// Check Bytes   ///////////////////////////////////
@@ -526,16 +398,4 @@ void successDelete() {
 // Check to see if the ID passed is the master programing card
 bool isMaster( byte test[] ) {
 	return checkTwo(test, masterCard);
-}
-
-bool monitorWipeButton(uint32_t interval) {
-  uint32_t now = (uint32_t)millis();
-  while ((uint32_t)millis() - now < interval)  {
-    // check on every half a second
-    if (((uint32_t)millis() % 500) == 0) {
-      if (digitalRead(wipeB) != LOW)
-        return false;
-    }
-  }
-  return true;
 }
