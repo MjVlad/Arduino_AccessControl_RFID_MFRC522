@@ -66,10 +66,12 @@ struct Log{
     //Serial.print(curTime);
     //Serial.print(" ");
     for (uint8_t i = 0; i < 4; i++){
-      Serial.print(card[i]);
+      char strbuf[2];
+      sprintf(strbuf, "%02x", card[i]);
+      //Serial.print(card[i]);
     }
-    Serial.print(" ");
-    printFlag();
+    Serial.print(actionFlag);
+    //printFlag();
     Serial.println();
   }
 
