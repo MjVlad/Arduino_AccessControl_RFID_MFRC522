@@ -1,5 +1,7 @@
 #include "logs.h"
 
+#define MAGICAL_NUMBER 143                  // EEPROM address 1 should hold magical number which is '143'
+
 Log::Log(byte* curCard, byte flag) {
 
     for (uint8_t i = 0; i < 4; i++) {
@@ -85,7 +87,7 @@ void Log::writeLog() {
 
     uint16_t i;
 
-    for (i = logBegin; i < 1000 && EEPROM.read(i) != MAGICAL_NUMBER; i += LOG_SIZE);
+    for (i = LOG_BEGIN; i < 1000 && EEPROM.read(i) != MAGICAL_NUMBER; i += LOG_SIZE);
 
     writeLog(i);
 
@@ -97,13 +99,13 @@ void printLogs() {
     Serial.println("Log is begin");
     bool flag = true;
     uint16_t i;
-    if (EEPROM.read(logBegin) == MAGICAL_NUMBER) {
+    if (EEPROM.read(LOG_BEGIN) == MAGICAL_NUMBER) {
         Serial.println("Log is out");
         return;
     }
-    for (i = logBegin; i < 1000 && EEPROM.read(i) != MAGICAL_NUMBER; i += LOG_SIZE);
+    for (i = LOG_BEGIN; i < 1000 && EEPROM.read(i) != MAGICAL_NUMBER; i += LOG_SIZE);
     if (EEPROM.read(++i) == 0) {
-        i = logBegin;
+        i = LOG_BEGIN;
         flag = false;
     }
     for (i; i < 1000 && EEPROM.read(i) != MAGICAL_NUMBER; i += LOG_SIZE) {
@@ -111,10 +113,16 @@ void printLogs() {
         logg.outToSerialPort();
     }
     if (flag) {
-        for (uint16_t j = logBegin; EEPROM.read(j) != MAGICAL_NUMBER; j += LOG_SIZE) {
+        for (uint16_t j = LOG_BEGIN; EEPROM.read(j) != MAGICAL_NUMBER; j += LOG_SIZE) {
             Log logg(j);
             logg.outToSerialPort();
         }
     }
     Serial.println("Log is out");
+}
+
+void cleanEEPROM(){
+  for (uint16_t i = LOG_BEGIN; i < 1024; i++){
+    EEPROM.write(i, 0);
+  }
 }
