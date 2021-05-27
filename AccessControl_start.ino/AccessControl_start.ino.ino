@@ -18,81 +18,102 @@
 #define blueLed 5
 #define logBegin 262
 
-union timeInByte{
-byte arr[4];
-uint32_t val;
-};
-
-////////////////////// Read time //////////////////////////
-uint32_t readTime(uint16_t pos){
-  timeInByte cur;
-  for (uint8_t i = 0; i < 4; i++){
-    cur.arr[i] = EEPROM.read(pos + i);
-  }
-  return cur.val;
-}
-
 struct Log{
-  uint32_t curTime;
-  uint8_t numberCard;
-  uint8_t actionFlag = 0;
+  byte card[4];
+  byte actionFlag = 0;
 
-  Log(uint8_t cardIndex, uint8_t flag){
-    curTime = time(0);
-    numberCard = cardIndex;
+  Log(byte* curCard, byte flag){
+    for (uint8_t i = 0; i < 4; i++){
+      card[i] = curCard[i];
+    }
     actionFlag = flag;
   }
 
-  const char* getFlag(){
+  Log(uint16_t pos){
+    for (uint8_t i = 0; i < 4; i++){
+      card[i] = EEPROM.read(pos + i);
+    }
+    actionFlag = EEPROM.read(pos + 4);
+  }
+
+  void printFlag(){
     switch(actionFlag){
       case 0:
-      return "Access granted";
+      Serial.print("Access granted");
+      break;
       case 1:
-      return "Access denied";
+      Serial.print("Access denied");
+      break;
       case 2:
-      return "Add card";
+      Serial.print("Add card");
+      break;
       case 3:
-      return "Delete card";
+      Serial.print("Delete card");
+      break;
       case 4:
-      return "Entry program mode";
+      Serial.print("Entry program mode");
+      break;
       case 5:
-      return "Exiting program mode";
+      Serial.print("Exiting program mode");
+      break;
       case 6:
-      return "Add mater card";
+      Serial.print("Add mater card");
+      break;
     }
   }
 
   void outToSerialPort(){
-    //TODO
+    //Serial.print(curTime);
+    //Serial.print(" ");
+    for (uint8_t i = 0; i < 4; i++){
+      Serial.print(card[i]);
+    }
+    Serial.print(" ");
+    printFlag();
+    Serial.println();
   }
 
   void writeLog(uint16_t pos){
-    timeInByte tmp;
-    tmp.val = curTime;
     for (int i = 0; i < 4; i++){
-      EEPROM.write(pos + i, tmp.arr[i]);
+      EEPROM.write(pos + i, card[i]);
     }
-    EEPROM.write(pos + 4, (byte)numberCard);
-    EEPROM.write(pos + 5, (byte)actionFlag);
+    EEPROM.write(pos + 4, actionFlag);
   }
 
   void writeLog(){
-    uint16_t posElderLog = logBegin;
-    uint32_t elderTime = WINT_MAX;
-    for (uint16_t i = logBegin; i < 1023; i += 6){
-      uint32_t tmp = readTime(i);
-      if (tmp == 0){
-        writeLog(i);
-        return;
-      }
-      if (tmp < elderTime){
-        elderTime = tmp;
-        posElderLog = i;
-      }
-    }
-    writeLog(posElderLog);
+    uint16_t i;
+    for (i = logBegin; i < 1000 && EEPROM.read(i) != 143; i += 5);
+    writeLog(i);
+    EEPROM.write(i + 5, 143);
+    return;
   }
 } typedef Log;
+
+void printLogs(){
+  Serial.println("Log is begin");
+  bool flag = true;
+  uint16_t i;
+  if (EEPROM.read(logBegin) == 143){
+    Serial.println("Log is out");
+    return;
+  }
+  for (i = logBegin; i < 1000 && EEPROM.read(i) != 143; i += 5);
+  if (EEPROM.read(++i) == 0){
+    i = logBegin;
+    flag = false;
+  }
+  for (i; i < 1000 && EEPROM.read(i) != 143; i += 5){
+    Log logg(i);
+    logg.outToSerialPort();
+  }
+  if (flag){
+    for (uint16_t j = logBegin; EEPROM.read(j) != 143; j += 5){
+      Log logg(j);
+      logg.outToSerialPort(); 
+    }
+  }
+  Serial.println("Log is out");
+}
 
 bool programMode = false;  // initialize programming mode to false
 
@@ -136,6 +157,13 @@ void setup() {
   // This also useful to just redefine the Master Card
   // You can keep other EEPROM records just write other than 143 to EEPROM address 1
   // EEPROM address 1 should hold magical number which is '143'
+  /*for (uint16_t i = logBegin; i < 1024; i++){
+    EEPROM.write(i, 0);
+  }*/
+  //EEPROM.write(logBegin, 143);
+  if (EEPROM.read(logBegin) == 0){
+    EEPROM.write(logBegin, 143);
+  }
   if (EEPROM.read(1) != 143) {
     Serial.println(F("No Master Card Defined"));
     Serial.println(F("Scan A PICC to Define as Master Card"));
@@ -152,7 +180,7 @@ void setup() {
     }
     EEPROM.write(1, 143);                  // Write to EEPROM we defined Master Card.
     Serial.println(F("Master Card Defined"));
-    Log log(0, 6);
+    Log log(masterCard, 6);
     log.writeLog();
   }
   Serial.println(F("-------------------"));
@@ -165,6 +193,7 @@ void setup() {
   Serial.println(F("-------------------"));
   Serial.println(F("Everything is ready"));
   Serial.println(F("Waiting PICCs to be scanned"));
+  //printLogs();
   cycleLeds();    // Everything ready lets give user some feedback by cycling leds
 }
 
@@ -186,7 +215,7 @@ void loop () {
       Serial.println(F("Exiting Program Mode"));
       Serial.println(F("-----------------------------"));
       programMode = false;
-      Log log(0, 5);
+      Log log(masterCard, 5);
       log.writeLog();
       return;
     }
@@ -196,7 +225,7 @@ void loop () {
         deleteID(readCard);
         Serial.println("-----------------------------");
         Serial.println(F("Scan a PICC to ADD or REMOVE to EEPROM"));
-        Log log(findID(readCard), 3);
+        Log log(readCard, 3);
         log.writeLog();
       }
       else {                    // If scanned card is not known add it
@@ -204,7 +233,7 @@ void loop () {
         writeID(readCard);
         Serial.println(F("-----------------------------"));
         Serial.println(F("Scan a PICC to ADD or REMOVE to EEPROM"));
-        Log log(findID(readCard), 2);
+        Log log(readCard, 2);
         log.writeLog();
       }
     }
@@ -212,7 +241,7 @@ void loop () {
   else {
     if ( isMaster(readCard)) {    // If scanned card's ID matches Master Card's ID - enter program mode
       programMode = true;
-      Log log(0, 4);
+      Log log(masterCard, 4);
       log.writeLog();
       Serial.println(F("Hello Master - Entered Program Mode"));
       uint8_t count = EEPROM.read(0);   // Read the first Byte of EEPROM that
@@ -228,13 +257,13 @@ void loop () {
       if ( findID(readCard) ) { // If not, see if the card is in the EEPROM
         Serial.println(F("Welcome, You shall pass"));
         granted(300);         // Open the door lock for 300 ms
-        Log log(findID(readCard), 0);
+        Log log(readCard, 0);
         log.writeLog();
       }
       else {      // If not, show that the ID was not valid
         Serial.println(F("You shall not pass"));
         denied();
-        Log log(findID(readCard), 1);
+        Log log(readCard, 1);
         log.writeLog();
       }
     }
