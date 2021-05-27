@@ -1,9 +1,6 @@
 #ifndef SETTINGS
 #define SETTINGS
 
-#define LED_ON LOW
-#define LED_OFF HIGH
-
 #define MAGICAL_NUMBER 143
 
 #define redLed 7    // Set Led Pins
