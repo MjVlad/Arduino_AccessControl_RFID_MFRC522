@@ -1,119 +1,16 @@
-#include <EEPROM.h>     // We are going to read and write PICC's UIDs from/to EEPROM
-#include <SPI.h>        // RC522 Module uses SPI protocol
-#include <MFRC522.h>  // Library for Mifare RC522 Devices
-#include <time.h>
+#include <EEPROM.h>
+#include <SPI.h>
+#include <MFRC522.h>  
+#include "logs.h"
 
-#define COMMON_ANODE
-
-#ifdef COMMON_ANODE
 #define LED_ON LOW
 #define LED_OFF HIGH
-#else
-#define LED_ON HIGH
-#define LED_OFF LOW
-#endif
+
+#define MAGICAL_NUMBER 143
 
 #define redLed 7    // Set Led Pins
 #define greenLed 6
 #define blueLed 5
-#define logBegin 262
-
-struct Log{
-  byte card[4];
-  byte actionFlag = 0;
-
-  Log(byte* curCard, byte flag){
-    for (uint8_t i = 0; i < 4; i++){
-      card[i] = curCard[i];
-    }
-    actionFlag = flag;
-  }
-
-  Log(uint16_t pos){
-    for (uint8_t i = 0; i < 4; i++){
-      card[i] = EEPROM.read(pos + i);
-    }
-    actionFlag = EEPROM.read(pos + 4);
-  }
-
-  void printFlag(){
-    switch(actionFlag){
-      case 0:
-      Serial.print("Access granted");
-      break;
-      case 1:
-      Serial.print("Access denied");
-      break;
-      case 2:
-      Serial.print("Add card");
-      break;
-      case 3:
-      Serial.print("Delete card");
-      break;
-      case 4:
-      Serial.print("Entry program mode");
-      break;
-      case 5:
-      Serial.print("Exiting program mode");
-      break;
-      case 6:
-      Serial.print("Add mater card");
-      break;
-    }
-  }
-
-  void outToSerialPort(){
-    //Serial.print(curTime);
-    //Serial.print(" ");
-    for (uint8_t i = 0; i < 4; i++){
-      Serial.print(card[i]);
-    }
-    Serial.print(" ");
-    printFlag();
-    Serial.println();
-  }
-
-  void writeLog(uint16_t pos){
-    for (int i = 0; i < 4; i++){
-      EEPROM.write(pos + i, card[i]);
-    }
-    EEPROM.write(pos + 4, actionFlag);
-  }
-
-  void writeLog(){
-    uint16_t i;
-    for (i = logBegin; i < 1000 && EEPROM.read(i) != 143; i += 5);
-    writeLog(i);
-    EEPROM.write(i + 5, 143);
-    return;
-  }
-} typedef Log;
-
-void printLogs(){
-  Serial.println("Log is begin");
-  bool flag = true;
-  uint16_t i;
-  if (EEPROM.read(logBegin) == 143){
-    Serial.println("Log is out");
-    return;
-  }
-  for (i = logBegin; i < 1000 && EEPROM.read(i) != 143; i += 5);
-  if (EEPROM.read(++i) == 0){
-    i = logBegin;
-    flag = false;
-  }
-  for (i; i < 1000 && EEPROM.read(i) != 143; i += 5){
-    Log logg(i);
-    logg.outToSerialPort();
-  }
-  if (flag){
-    for (uint16_t j = logBegin; EEPROM.read(j) != 143; j += 5){
-      Log logg(j);
-      logg.outToSerialPort(); 
-    }
-  }
-  Serial.println("Log is out");
-}
 
 bool programMode = false;  // initialize programming mode to false
 
@@ -160,11 +57,11 @@ void setup() {
   /*for (uint16_t i = logBegin; i < 1024; i++){
     EEPROM.write(i, 0);
   }*/
-  //EEPROM.write(logBegin, 143);
+  //EEPROM.write(logBegin, MAGICAL_NUMBER);
   if (EEPROM.read(logBegin) == 0){
-    EEPROM.write(logBegin, 143);
+    EEPROM.write(logBegin, MAGICAL_NUMBER);
   }
-  if (EEPROM.read(1) != 143) {
+  if (EEPROM.read(1) != MAGICAL_NUMBER) {
     Serial.println(F("No Master Card Defined"));
     Serial.println(F("Scan A PICC to Define as Master Card"));
     do {
@@ -178,7 +75,7 @@ void setup() {
     for ( uint8_t j = 0; j < 4; j++ ) {        // Loop 4 times
       EEPROM.write( 2 + j, readCard[j] );  // Write scanned PICC's UID to EEPROM, start from address 3
     }
-    EEPROM.write(1, 143);                  // Write to EEPROM we defined Master Card.
+    EEPROM.write(1, MAGICAL_NUMBER);                  // Write to EEPROM we defined Master Card.
     Serial.println(F("Master Card Defined"));
     Log log(masterCard, 6);
     log.writeLog();
