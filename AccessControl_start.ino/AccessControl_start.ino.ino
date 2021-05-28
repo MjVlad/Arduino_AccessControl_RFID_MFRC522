@@ -84,7 +84,8 @@ struct Log{
 
   void writeLog(){
     uint16_t i;
-    for (i = logBegin; i < 1000 && EEPROM.read(i) != 143; i += 5);
+    for (i = logBegin; i < 1024 && EEPROM.read(i) != 143; i += 5);
+    
     writeLog(i);
     EEPROM.write(i + 5, 143);
     return;
@@ -99,12 +100,12 @@ void printLogs(){
     Serial.println("Log is out");
     return;
   }
-  for (i = logBegin; i < 1000 && EEPROM.read(i) != 143; i += 5);
-  if (EEPROM.read(++i) == 0){
+  for (i = logBegin; i < 1024 && EEPROM.read(i) != 143; i += 5);
+  if (EEPROM.read(i + 1) == 0){
     i = logBegin;
     flag = false;
   }
-  for (i; i < 1000 && EEPROM.read(i) != 143; i += 5){
+  for (i = i  + 5; i < 1000 && EEPROM.read(i) != 143; i += 5){
     Log logg(i);
     logg.outToSerialPort();
   }
