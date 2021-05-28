@@ -59,17 +59,19 @@ void Log::printFlag() {
 
 void Log::outToSerialPort() {
     
-    for (uint8_t i = 0; i < 4; i++) {
-
-        Serial.print(card[i]);
-
+    for (uint8_t i = 0; i < 4; i++){
+      char strbuf[2];
+      sprintf(strbuf, "%02x", card[i]);
     }
-
-    Serial.print(" ");
-
-    printFlag();
-    
+    Serial.print(actionFlag);
     Serial.println();
+  }
+
+  void writeLog(uint16_t pos){
+    for (int i = 0; i < 4; i++){
+      EEPROM.write(pos + i, card[i]);
+    }
+    EEPROM.write(pos + 4, actionFlag);
 }
 
 void Log::writeLog(uint16_t pos) {
@@ -95,30 +97,30 @@ void Log::writeLog() {
 
 }
 
-void printLogs() {
-    Serial.println("Log is begin");
-    bool flag = true;
-    uint16_t i;
-    if (EEPROM.read(LOG_BEGIN) == MAGICAL_NUMBER) {
-        Serial.println("Log is out");
-        return;
-    }
-    for (i = LOG_BEGIN; i < 1000 && EEPROM.read(i) != MAGICAL_NUMBER; i += LOG_SIZE);
-    if (EEPROM.read(++i) == 0) {
-        i = LOG_BEGIN;
-        flag = false;
-    }
-    for (i; i < 1000 && EEPROM.read(i) != MAGICAL_NUMBER; i += LOG_SIZE) {
-        Log logg(i);
-        logg.outToSerialPort();
-    }
-    if (flag) {
-        for (uint16_t j = LOG_BEGIN; EEPROM.read(j) != MAGICAL_NUMBER; j += LOG_SIZE) {
-            Log logg(j);
-            logg.outToSerialPort();
-        }
-    }
+void printLogs(){
+  Serial.println("Log is begin");
+  bool flag = true;
+  uint16_t i;
+  if (EEPROM.read(logBegin) == 143){
     Serial.println("Log is out");
+    return;
+  }
+  for (i = logBegin; i < 1024 && EEPROM.read(i) != 143; i += 5);
+  if (EEPROM.read(i + 1) == 0){
+    i = logBegin;
+    flag = false;
+  }
+  for (i = i  + 5; i < 1000 && EEPROM.read(i) != 143; i += 5){
+    Log logg(i);
+    logg.outToSerialPort();
+  }
+  if (flag){
+    for (uint16_t j = logBegin; EEPROM.read(j) != 143; j += 5){
+      Log logg(j);
+      logg.outToSerialPort(); 
+    }
+  }
+  Serial.println("Log is out");
 }
 
 void cleanEEPROM(){
