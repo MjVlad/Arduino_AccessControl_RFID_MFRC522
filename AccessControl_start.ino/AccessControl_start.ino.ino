@@ -85,9 +85,13 @@ struct Log{
   void writeLog(){
     uint16_t i;
     for (i = logBegin; i < 1024 && EEPROM.read(i) != 143; i += 5);
-    
     writeLog(i);
+    if (i == 1017){
+      EEPROM.write(logBegin, 143);
+    }
+    else{
     EEPROM.write(i + 5, 143);
+    }
     return;
   }
 } typedef Log;
